@@ -1,0 +1,266 @@
+--[[
+
+all chat in you glasses AND monitors
+
+developed by writer
+
+]]--
+
+
+
+
+local component = require("component")
+local fs = require("filesystem")
+local event = require("event")
+local  term = require("term")
+
+local bridge = component.openperipheral_bridge
+local gpu = component.gpu
+
+local chatLog_path = "chat_log.txt"
+
+--Получить текущее реальное время компьютера, хостящего сервер майна
+function getHostTime(timezone)
+  timezone = timezone
+  local file = io.open("/HostTime.tmp", "w")
+  file:write("")
+  file:close()
+  local timeCorrection = timezone * 3600
+  local lastModified = tonumber(string.sub(fs.lastModified("/HostTime.tmp"), 1, -4)) + timeCorrection
+  fs.remove("/HostTime.tmp")
+  local year, month, day, hour, minute, second = os.date("%Y", lastModified), os.date("%m", lastModified), os.date("%d", lastModified), os.date("%H", lastModified), os.date("%M", lastModified), os.date("%S", lastModified)
+  return tonumber(day), tonumber(month), tonumber(year), tonumber(hour), tonumber(minute), tonumber(second)
+end
+
+function splByToken(str, token)
+  local t = {}
+  local tempStr = ""
+  local i = 1
+
+  while i <= str:len() do
+    if (string.sub(str, i, i) == "&") then
+      table.insert(t, tempStr)
+      tempStr = ""
+    end
+
+    tempStr = tempStr .. string.sub(str, i, i)
+    i = i + 1
+
+  end 
+
+  if (tempStr ~= "") then
+    table.insert(t, tempStr)
+  end
+
+    return t
+end
+
+-- Устанавливает цвет шрифта
+function setColor(num)
+  if (num == "0") then
+  gpu.setForeground(0x333333)
+  end
+
+  if (num == "1") then
+  gpu.setForeground(0x000099)
+  end
+
+  if (num == "2") then
+  gpu.setForeground(0x006600)
+  end
+
+  if (num == "3") then
+  gpu.setForeground(0x006666)
+  end
+
+  if (num == "4") then
+  gpu.setForeground(0x660000)
+  end
+
+  if (num == "5") then
+  gpu.setForeground(0x660066)
+  end
+
+  if (num == "6") then
+  gpu.setForeground(0xFF8000)
+  end
+
+  if (num == "7") then
+  gpu.setForeground(0xA0A0A0)
+  end
+
+  if (num == "8") then
+  gpu.setForeground(0x404040)
+  end
+
+  if (num == "9") then
+  gpu.setForeground(0x3399FF)
+  end
+
+  if (num == "a") then
+  gpu.setForeground(0x99FF33)
+  end
+
+  if (num == "b") then
+  gpu.setForeground(0x00FFFF)
+  end
+
+  if (num == "c") then
+  gpu.setForeground(0xFF3333)
+  end
+
+  if (num == "d") then
+  gpu.setForeground(0xFF00FF)
+  end
+
+  if (num == "e") then
+  gpu.setForeground(0xFFFF00)
+  end
+
+  if (num == "f") then
+  gpu.setForeground(0xFFFFFF)
+  end
+end
+
+function writeMessage(text)
+  if (string.sub(text, 1, 1) == "!") then
+    text = string.sub(text, 2)
+  end
+  local t = splByToken(text, "&")
+
+  for k, v in pairs(t) do
+    if (not isColored(v)) then
+      gpu.setForeground(0xFFFFFF)
+      io.write(v)
+    else
+      setColor(string.sub(v, 2, 2))
+      io.write(string.sub(v, 3))
+    end
+  end
+end
+
+function pcMsg(nick, msg) --вывод строки в компе
+  local type = ""
+  if (isGlobal(msg)) then type = "G" else type = "L" end
+
+  local file = fs.open(chatLog_path, "a")
+  file:write("[" .. real_time() .. "] [" .. type .. "] " .. nick .. ": " .. msg .. "\n")
+  file:close()
+
+  gpu.setForeground(0x00FFFF)
+  io.write("[" .. real_time() .. "] ")
+  gpu.setForeground(0xFFFFFF)
+  if (type == "G") then
+  gpu.setForeground(0xFF9933)
+  else
+  gpu.setForeground(0xFFFFFF)
+  end
+  io.write("[" .. type .. "] ")
+  gpu.setForeground(0x00FF00)
+  io.write(nick)
+  gpu.setForeground(0xFFFFFF)
+  io.write(": ")
+  writeMessage(msg)
+  io.write("\n")
+end
+
+function stringToArray(text)
+t = {}
+text:gsub(".",function() table.insert(t,c) end)
+return t
+end
+
+function countOfItems(arr)
+  Count = 0
+  for k, v in ipairs(arr) do
+    Count = Count + 1
+    end
+    return Count
+end
+
+function isColored(text)
+  if (string.sub(text, 1, 1) == "&") then
+    return true
+  else
+    return false
+  end
+end
+
+-- Получет настоящее время хоста
+function real_time()
+local d,  m, y, h, m, s = getHostTime(3)
+  local mins = ""
+
+  if (m < 10) then        -- чтобы время [0:02] не выглядело как [0:2]
+    mins = "0" .. tostring(m)
+  else
+    mins = tostring(m)
+  end
+
+  return tostring(h) .. ":" .. mins
+end
+
+-- Проверяет в глобальном ли чате написано сообщение
+function isGlobal(msg)
+
+  if (string.sub(msg, 1, 1) == "!")then
+   return true
+  else
+    return false
+  end
+end
+
+-- возвращает оформленную строку с сообщением вида [23:12][G]player: Hello
+function message(nick, msg)
+local type = ""
+  if (isGlobal(msg)) then type = "G" else type = "L" end
+
+  local file = fs.open(chatLog_path, "a")
+  file:write("[" .. real_time() .. "] [" .. type .. "] " .. nick .. ": " .. msg .. "\n")
+
+  return "[" .. real_time() .. "] " .. "[" .. type .. "] " .. nick .. ": " .. msg 
+
+end
+
+local nowY = 20
+local constX = 20
+local nowMsg
+
+bridge.addText(constX, 100, "Initialize", 0x334000)
+term.clear()
+bridge.clear()
+
+local messages = {}
+
+while true do
+
+  local _, add, nick, msg = event.pull("chat_message")
+  local type = isGlobal(msg)
+  local color = 0xBFA000
+
+  local cof = countOfItems(messages)
+
+  table.insert(messages, 1, message(nick, msg, type))
+
+  color = 0x339933
+
+
+  if (cof > 20) then
+    table.remove(messages, 21)
+  end
+
+  for k, v in ipairs(messages) do
+
+    bridge.addText(constX, 20*(20-k) + 40, v, 0xE0FFFF)
+
+    if (k >= 20) then
+      break
+    end
+  end
+
+  bridge.sync()
+  pcMsg(nick, msg, type)
+  bridge.clear()
+
+  nowY = nowY + 20
+end
